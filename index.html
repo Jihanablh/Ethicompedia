@@ -1482,6 +1482,14 @@
     let speedAnswered = 0;
     let speedQuestions = [];
     let speedRunning = false;
+    let speedGameTimeLeft = 60;
+    let speedGameTimer = null;
+    let speedGameQuestions = [];
+    let speedGameIndex = 0;
+    let speedGameCorrect = 0;
+    let speedGameWrong = 0;
+    let speedGameAnswered = 0;
+    let speedGameRunning = false;
 
     function init() {
       if (store.get('theme', 'light') === 'dark') document.documentElement.classList.add('dark');
@@ -1520,7 +1528,8 @@
         { id: 'game', icon: '🎮', label: 'Game', page: 'game', items: [
           { label: 'Drag & Drop Etika', action: `go('game','kategori-etika')`, active: hash === 'game-kategori-etika' },
           { label: 'Tebak Istilah', action: `go('game','tebak-istilah')`, active: hash === 'game-tebak-istilah' },
-          { label: 'Decision Game', action: `go('game','decision-game')`, active: hash === 'game-decision-game' }
+          { label: 'Decision Game', action: `go('game','decision-game')`, active: hash === 'game-decision-game' },
+          { label: '⚡ Speed Challenge 1 Menit', action: `go('game','speed-challenge')`, active: hash === 'game-speed-challenge' }
         ] },
         { id: 'summary', icon: '📊', label: 'Rangkuman', page: 'summary', items: [
           { label: 'Rangkuman BAB 1–3', action: `go('summary','bab-1-3')`, active: hash === 'rangkuman-bab-1-3' },
@@ -2172,6 +2181,12 @@
       return { ...q, options: options.map(o => o.text), answer: options.findIndex(o => o.correct) };
     }
 
+    const speedGameData = speedQuizData;
+
+    function prepareSpeedGameQuestion(q) {
+      return prepareSpeedQuestion(q);
+    }
+
     function renderSpeedQuiz() {
       const best = store.get('speedQuizBest', { correct: 0, answered: 0, accuracy: 0, score: 0 });
       $('quiz').innerHTML = `
@@ -2484,14 +2499,51 @@
     }
 
     function renderGame() {
+      const best = store.get('speedGameBest', { correct: 0, answered: 0, accuracy: 0, score: 0 });
       $('game').innerHTML = `
       <div class="${card()}"><p class="font-bold text-indigo-600 dark:text-cyan-300">🎮 Mini-game edukatif</p><h2 class="font-heading text-3xl">Belajar sambil bermain</h2></div>
       <div class="mt-5 grid gap-5 xl:grid-cols-3">
         <div class="${card()}" data-anchor="kategori-etika"><h3 class="font-heading text-xl">Kategori Etika</h3><p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Cocokkan konsep ke kerangka etika yang tepat.</p><div id="categoryGame" class="mt-4"></div></div>
         <div class="${card()}" data-anchor="tebak-istilah"><h3 class="font-heading text-xl">Tebak Istilah</h3><p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Pilih istilah yang cocok dengan petunjuk.</p><div id="termGame" class="mt-4"></div></div>
         <div class="${card()}" data-anchor="decision-game"><h3 class="font-heading text-xl">Keputusan Etis</h3><p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Pilih respons paling etis dari sebuah kasus.</p><div id="decisionGame" class="mt-4"></div></div>
-      </div>`;
-      drawCategoryGame(); drawTermGame(); drawDecisionGame();
+      </div>
+      <section id="speedGameCard" data-anchor="speed-challenge" class="${card('mt-5 overflow-hidden')}">
+        <div class="rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-cyan-500 p-6 text-white">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p class="font-bold text-amber-100">⚡ Speed Challenge 1 Menit</p>
+              <h2 class="font-heading text-3xl">Adu cepat ingat konsep UTS</h2>
+              <p class="mt-2 max-w-2xl text-sm leading-6 text-indigo-50">Jawab sebanyak mungkin pertanyaan dalam 60 detik. Soal diacak dari semua BAB dan langsung berganti setelah dijawab.</p>
+            </div>
+            <div class="rounded-2xl bg-white/15 p-4 text-sm ring-1 ring-white/20">
+              <p class="font-bold">Best: ${best.correct || 0} benar</p>
+              <p>Dijawab ${best.answered || 0} • Akurasi ${best.accuracy || 0}%</p>
+            </div>
+          </div>
+        </div>
+        <div class="mt-5 grid gap-4 lg:grid-cols-[.8fr_1.2fr]">
+          <div class="rounded-3xl bg-white/70 p-5 shadow-sm dark:bg-white/10">
+            <p class="text-sm font-bold uppercase text-indigo-600 dark:text-cyan-300">Waktu tersisa</p>
+            <div id="speedGameTimer" class="mt-2 font-heading text-6xl text-slate-900 dark:text-white">${formatTime(speedGameTimeLeft)}</div>
+            <div class="mt-4 h-3 rounded-full bg-slate-200 dark:bg-white/10"><div id="speedGameProgress" class="h-3 rounded-full bg-gradient-to-r from-amber-400 via-cyan-400 to-emerald-400" style="width:${Math.max(0, speedGameTimeLeft / 60 * 100)}%"></div></div>
+            <div class="mt-5 grid grid-cols-3 gap-2 text-center text-sm">
+              <div class="rounded-2xl bg-emerald-100 p-3 font-bold text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100">Benar<br><span id="speedGameCorrect">${speedGameCorrect}</span></div>
+              <div class="rounded-2xl bg-rose-100 p-3 font-bold text-rose-800 dark:bg-rose-400/15 dark:text-rose-100">Salah<br><span id="speedGameWrong">${speedGameWrong}</span></div>
+              <div class="rounded-2xl bg-indigo-100 p-3 font-bold text-indigo-800 dark:bg-indigo-400/15 dark:text-indigo-100">Dijawab<br><span id="speedGameAnswered">${speedGameAnswered}</span></div>
+            </div>
+            <button onclick="startSpeedGame()" class="mt-5 w-full rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-3 font-bold text-white transition hover:-translate-y-1 hover:shadow-lg">${speedGameRunning ? 'Restart Game' : 'Mulai Game'}</button>
+          </div>
+          <div class="rounded-3xl bg-white/70 p-5 shadow-sm dark:bg-white/10">
+            <div id="speedGameResult"></div>
+            <div id="speedGameQuestionWrap">
+              <div id="speedGameBab" class="mb-3 inline-flex rounded-full bg-cyan-100 px-3 py-1 text-xs font-black text-cyan-800 dark:bg-cyan-400/15 dark:text-cyan-200">Siap mulai</div>
+              <h3 id="speedGameQuestion" class="font-heading text-2xl">Klik Mulai Game untuk memulai timer 01:00.</h3>
+              <div id="speedGameOptions" class="mt-5 grid gap-3"></div>
+            </div>
+          </div>
+        </div>
+      </section>`;
+      drawCategoryGame(); drawTermGame(); drawDecisionGame(); updateSpeedGameTimer(); updateSpeedGameStats(); if (speedGameRunning) renderSpeedGameQuestion();
     }
 
     const categoryItems = [
@@ -2547,27 +2599,220 @@
     }
 
     const decisionItems = [
-      ['Tim menemukan celah keamanan sebelum rilis.', 'Laporkan celah dan tunda rilis sampai risiko utama ditangani.', ['Sembunyikan agar deadline aman','Laporkan celah dan tunda rilis sampai risiko utama ditangani','Rilis dulu lalu hapus log']],
-      ['Aplikasi ingin meminta akses kontak untuk fitur rekomendasi teman.', 'Minta izin jelas dan sediakan opsi menolak.', ['Ambil semua kontak otomatis','Minta izin jelas dan sediakan opsi menolak','Jual kontak ke partner']],
-      ['AI rekrutmen menunjukkan hasil bias.', 'Audit data dan hentikan penggunaan sampai bias dikurangi.', ['Tetap pakai karena efisien','Audit data dan hentikan penggunaan sampai bias dikurangi','Salahkan kandidat']]
+      {
+        scenario: 'Tim menemukan celah keamanan serius beberapa hari sebelum fitur dirilis.',
+        question: 'Keputusan paling etis adalah...',
+        options: [
+          { text: 'Tetap rilis karena celah belum tentu diketahui pengguna luar.', correct: false },
+          { text: 'Laporkan celah, tunda rilis berisiko, dan perbaiki bagian kritis.', correct: true },
+          { text: 'Rilis terbatas tanpa dokumentasi agar target sprint tetap tercapai.', correct: false },
+          { text: 'Menghapus log pengujian supaya masalah tidak tampak besar.', correct: false }
+        ],
+        explanation: 'Etika profesional IT menuntut integrity dan responsibility. Risiko keamanan tidak boleh disembunyikan hanya demi deadline.'
+      },
+      {
+        scenario: 'Aplikasi ingin mengumpulkan lokasi real-time agar rekomendasi layanan lebih personal.',
+        question: 'Keputusan paling etis adalah...',
+        options: [
+          { text: 'Mengumpulkan lokasi hanya setelah tujuan jelas dan pengguna memberi persetujuan.', correct: true },
+          { text: 'Mengaktifkan lokasi otomatis karena personalisasi membutuhkan data yang lengkap.', correct: false },
+          { text: 'Menyimpan lokasi tanpa batas waktu untuk kebutuhan analisis masa depan.', correct: false },
+          { text: 'Membagikan lokasi ke partner selama aplikasi tetap gratis digunakan.', correct: false }
+        ],
+        explanation: 'Penggunaan data pribadi harus transparan, proporsional, dan berdasarkan persetujuan yang jelas.'
+      },
+      {
+        scenario: 'AI rekrutmen lebih sering menolak kandidat perempuan karena data historis perusahaan didominasi laki-laki.',
+        question: 'Respons yang paling sesuai dengan prinsip fairness adalah...',
+        options: [
+          { text: 'Melanjutkan sistem karena AI hanya membaca pola dari data lama.', correct: false },
+          { text: 'Memakai hasil AI sebagai keputusan final agar proses tetap efisien.', correct: false },
+          { text: 'Menyalahkan kandidat karena tidak sesuai pola yang dipelajari sistem.', correct: false },
+          { text: 'Menghentikan sementara, mengaudit data dan model, lalu mengurangi bias.', correct: true }
+        ],
+        explanation: 'AI tidak otomatis netral. Sistem yang bias perlu diaudit agar tidak memperkuat diskriminasi.'
+      },
+      {
+        scenario: 'Sebuah video deepfake tentang tokoh publik mulai viral menjelang pemilu.',
+        question: 'Tindakan paling bertanggung jawab adalah...',
+        options: [
+          { text: 'Menyebarkan ulang karena publik berhak menilai sendiri isi video.', correct: false },
+          { text: 'Menunggu sampai video lebih ramai sebelum melakukan pengecekan.', correct: false },
+          { text: 'Memverifikasi sumber, memberi label peringatan, dan mencegah penyebaran palsu.', correct: true },
+          { text: 'Menganggapnya hiburan selama tidak ada permintaan hapus dari korban.', correct: false }
+        ],
+        explanation: 'Deepfake dapat merusak kepercayaan publik. Verifikasi dan pencegahan disinformasi adalah langkah etis.'
+      },
+      {
+        scenario: 'Aplikasi pinjaman online memakai kontak pengguna untuk menekan peminjam yang terlambat membayar.',
+        question: 'Masalah etika utama pada kasus ini adalah...',
+        options: [
+          { text: 'Data kontak digunakan secara tidak proporsional dan melanggar privasi.', correct: true },
+          { text: 'Kontak boleh dipakai penuh karena pengguna pernah menekan tombol izin.', correct: false },
+          { text: 'Penagihan lewat kontak cukup etis selama pinjaman benar-benar diberikan.', correct: false },
+          { text: 'Masalah utama hanya keterlambatan pengguna dalam membayar pinjaman.', correct: false }
+        ],
+        explanation: 'Persetujuan akses data tidak berarti data boleh dipakai untuk intimidasi atau tekanan sosial.'
+      },
+      {
+        scenario: 'Perusahaan menemukan indikasi kebocoran data pengguna, tetapi takut reputasinya turun.',
+        question: 'Keputusan yang paling akuntabel adalah...',
+        options: [
+          { text: 'Menunda pengumuman sampai publik menemukan sendiri masalahnya.', correct: false },
+          { text: 'Memberi tahu pihak terdampak, melakukan investigasi, dan menutup celah.', correct: true },
+          { text: 'Menghapus log agar dampak insiden terlihat lebih kecil.', correct: false },
+          { text: 'Menyalahkan pengguna karena mungkin memakai password yang lemah.', correct: false }
+        ],
+        explanation: 'Accountability menuntut organisasi transparan, menyelidiki insiden, dan memperbaiki keamanan data.'
+      },
+      {
+        scenario: 'Tim menemukan komputer korban ransomware dan ingin segera membersihkan semua file mencurigakan.',
+        question: 'Langkah awal yang paling tepat secara forensik adalah...',
+        options: [
+          { text: 'Menghapus file mencurigakan agar malware tidak menyebar lebih jauh.', correct: false },
+          { text: 'Mengunggah bukti ke grup publik agar komunitas membantu menganalisis.', correct: false },
+          { text: 'Mengamankan bukti, mendokumentasikan kondisi, dan menjaga chain of custody.', correct: true },
+          { text: 'Menginstal ulang sistem sebelum investigator memeriksa perangkat.', correct: false }
+        ],
+        explanation: 'Bukti digital harus dijaga agar tetap valid. Chain of Custody mencatat perjalanan bukti dari ditemukan sampai proses hukum.'
+      },
+      {
+        scenario: 'Startup ingin meluncurkan fitur tracking perilaku pengguna tanpa audit risiko karena takut kalah cepat dari kompetitor.',
+        question: 'Keputusan etis yang paling tepat adalah...',
+        options: [
+          { text: 'Meluncurkan dulu dan memperbaiki dampak sosial setelah ada keluhan.', correct: false },
+          { text: 'Membatasi peluncuran, menguji risiko, dan menjelaskan penggunaan data.', correct: true },
+          { text: 'Mengoptimalkan engagement dulu karena etika bisa dibahas setelah produk ramai.', correct: false },
+          { text: 'Menyamarkan tracking sebagai fitur performa agar pengguna tidak khawatir.', correct: false }
+        ],
+        explanation: 'Inovasi cepat tetap perlu transparansi, uji risiko, dan tanggung jawab sebelum berdampak luas.'
+      }
     ];
-    let decisionIndex = 0, decisionScore = 0;
+    let decisionIndex = 0, decisionScore = 0, decisionAnswered = false;
     function drawDecisionGame() {
       const item = decisionItems[decisionIndex % decisionItems.length];
       $('decisionGame').innerHTML = `<div class="rounded-2xl bg-white/70 p-4 dark:bg-white/10">
         <div class="mb-3 flex justify-between text-sm font-bold"><span>Skor ${decisionScore}</span><span>${decisionIndex + 1}/${decisionItems.length}</span></div>
-        <p class="font-semibold">${item[0]}</p>
-        <div class="mt-3 grid gap-2">${item[2].map(o => `<button onclick="answerDecision('${o.replace(/'/g, "\\'")}')" class="rounded-2xl bg-white px-3 py-3 text-left text-sm font-bold text-slate-800 shadow-sm transition hover:-translate-y-1 dark:bg-slate-900 dark:text-white">${o}</button>`).join('')}</div>
+        <p class="text-sm text-slate-600 dark:text-slate-300">${escapeHtml(item.scenario)}</p>
+        <p class="mt-2 font-semibold">${escapeHtml(item.question)}</p>
+        <div class="mt-3 grid gap-2">${item.options.map((option, index) => `<button onclick="answerDecision(${index})" class="decision-option rounded-2xl bg-white px-3 py-3 text-left text-sm font-bold text-slate-800 shadow-sm transition hover:-translate-y-1 dark:bg-slate-900 dark:text-white">${escapeHtml(option.text)}</button>`).join('')}</div>
         <div id="decisionFeedback" class="mt-3"></div>
       </div>`;
     }
-    function answerDecision(choice) {
+    function answerDecision(selectedIndex) {
+      if (decisionAnswered) return;
+      decisionAnswered = true;
       const item = decisionItems[decisionIndex % decisionItems.length];
-      const ok = choice === item[1];
+      const selectedOption = item.options[Number(selectedIndex)];
+      const correctOption = item.options.find(option => option.correct);
+      const ok = Boolean(selectedOption && selectedOption.correct);
       decisionScore += ok ? 10 : 0;
-      $('decisionFeedback').innerHTML = `<div class="${ok ? 'bounce-ok bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100' : 'shake-bad bg-rose-100 text-rose-800 dark:bg-rose-400/15 dark:text-rose-100'} rounded-2xl p-3 text-sm">${ok ? 'Keputusan etis!' : 'Risikonya masih tinggi.'}<br>Jawaban terbaik: <b>${item[1]}</b></div>`;
+      document.querySelectorAll('.decision-option').forEach(button => {
+        button.disabled = true;
+        button.classList.add('cursor-not-allowed', 'opacity-70');
+      });
+      $('decisionFeedback').innerHTML = `<div class="${ok ? 'bounce-ok bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100' : 'shake-bad bg-rose-100 text-rose-800 dark:bg-rose-400/15 dark:text-rose-100'} rounded-2xl p-3 text-sm">${ok ? 'Benar, itu keputusan paling etis.' : `Salah. Jawaban yang lebih tepat: <b>${escapeHtml(correctOption.text)}</b>.`}<br>${escapeHtml(item.explanation)}</div>`;
       playTone(ok ? 'game' : 'bad');
-      setTimeout(() => { decisionIndex = (decisionIndex + 1) % decisionItems.length; drawDecisionGame(); }, 1200);
+      setTimeout(() => { decisionIndex = (decisionIndex + 1) % decisionItems.length; decisionAnswered = false; drawDecisionGame(); }, 1400);
+    }
+
+    function startSpeedGame() {
+      ensureAudio();
+      clearInterval(speedGameTimer);
+      speedGameTimeLeft = 60;
+      speedGameIndex = 0;
+      speedGameCorrect = 0;
+      speedGameWrong = 0;
+      speedGameAnswered = 0;
+      speedGameRunning = true;
+      speedGameQuestions = shuffleArray(speedGameData).map(prepareSpeedGameQuestion);
+      if (!$('speedGameCard')) renderGame();
+      if ($('speedGameResult')) $('speedGameResult').innerHTML = '';
+      if ($('speedGameQuestionWrap')) $('speedGameQuestionWrap').classList.remove('hidden');
+      updateSpeedGameStats();
+      updateSpeedGameTimer();
+      renderSpeedGameQuestion();
+      speedGameTimer = setInterval(() => {
+        speedGameTimeLeft = Math.max(0, speedGameTimeLeft - 1);
+        updateSpeedGameTimer();
+        if (speedGameTimeLeft <= 0) endSpeedGame();
+      }, 1000);
+    }
+
+    function updateSpeedGameTimer() {
+      if ($('speedGameTimer')) $('speedGameTimer').textContent = formatTime(speedGameTimeLeft);
+      if ($('speedGameProgress')) $('speedGameProgress').style.width = `${Math.max(0, speedGameTimeLeft / 60 * 100)}%`;
+    }
+
+    function updateSpeedGameStats() {
+      if ($('speedGameCorrect')) $('speedGameCorrect').textContent = speedGameCorrect;
+      if ($('speedGameWrong')) $('speedGameWrong').textContent = speedGameWrong;
+      if ($('speedGameAnswered')) $('speedGameAnswered').textContent = speedGameAnswered;
+    }
+
+    function renderSpeedGameQuestion() {
+      if (!speedGameRunning) return;
+      if (speedGameIndex >= speedGameQuestions.length) return endSpeedGame();
+      const current = speedGameQuestions[speedGameIndex];
+      if ($('speedGameResult')) $('speedGameResult').innerHTML = '';
+      if ($('speedGameBab')) $('speedGameBab').textContent = current.bab;
+      if ($('speedGameQuestion')) $('speedGameQuestion').textContent = current.question;
+      if ($('speedGameOptions')) $('speedGameOptions').innerHTML = current.options.map((option, index) => `<button class="speed-game-option rounded-2xl bg-white p-4 text-left font-semibold text-slate-800 shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:bg-slate-900 dark:text-white" onclick="answerSpeedGame(${index})"><span class="mr-2 font-heading">${'ABCD'[index]}.</span>${option}</button>`).join('');
+    }
+
+    function answerSpeedGame(selectedIndex) {
+      if (!speedGameRunning || speedGameTimeLeft <= 0) return;
+      const current = speedGameQuestions[speedGameIndex];
+      if (selectedIndex === current.answer) {
+        speedGameCorrect++;
+        playTone('ok');
+      } else {
+        speedGameWrong++;
+        playTone('bad');
+      }
+      speedGameAnswered++;
+      speedGameIndex++;
+      updateSpeedGameStats();
+      renderSpeedGameQuestion();
+    }
+
+    function endSpeedGame() {
+      clearInterval(speedGameTimer);
+      speedGameTimer = null;
+      if (!speedGameRunning && !$('speedGameResult')) return;
+      speedGameRunning = false;
+      updateSpeedGameTimer();
+      document.querySelectorAll('.speed-game-option').forEach(btn => btn.disabled = true);
+      const accuracy = speedGameAnswered ? Math.round((speedGameCorrect / speedGameAnswered) * 100) : 0;
+      const score = speedGameCorrect * 10 - speedGameWrong * 2;
+      const best = store.get('speedGameBest', { correct: 0, answered: 0, accuracy: 0, score: 0 });
+      if (score > (best.score || 0) || speedGameCorrect > (best.correct || 0)) {
+        store.set('speedGameBest', { correct: speedGameCorrect, answered: speedGameAnswered, accuracy, score, updatedAt: new Date().toISOString() });
+      }
+      playTone('done');
+      toast('Speed Challenge selesai. Cek hasilmu!');
+      if ($('speedGameQuestionWrap')) $('speedGameQuestionWrap').classList.add('hidden');
+      if ($('speedGameResult')) $('speedGameResult').innerHTML = `
+        <div class="rounded-3xl bg-gradient-to-br from-indigo-600 to-cyan-500 p-6 text-white shadow-glow">
+          <h3 class="font-heading text-3xl">Game Selesai!</h3>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            <div class="rounded-2xl bg-white/15 p-4"><b>Dijawab</b><br><span class="font-heading text-3xl">${speedGameAnswered}</span></div>
+            <div class="rounded-2xl bg-white/15 p-4"><b>Skor akhir</b><br><span class="font-heading text-3xl">${score}</span></div>
+            <div class="rounded-2xl bg-white/15 p-4"><b>Benar</b><br>${speedGameCorrect}</div>
+            <div class="rounded-2xl bg-white/15 p-4"><b>Salah</b><br>${speedGameWrong}</div>
+            <div class="rounded-2xl bg-white/15 p-4 sm:col-span-2"><b>Akurasi</b><br>${accuracy}%</div>
+          </div>
+          <p class="mt-4 rounded-2xl bg-white/15 p-4 font-semibold">${getSpeedGameMotivation(accuracy, speedGameAnswered)}</p>
+          <button onclick="startSpeedGame()" class="mt-5 rounded-2xl bg-white px-5 py-3 font-bold text-indigo-700">Main Lagi</button>
+        </div>`;
+      renderDashboard();
+    }
+
+    function getSpeedGameMotivation(accuracy, answered) {
+      if (answered >= 20 && accuracy >= 80) return 'Keren banget! Kamu cepat dan akurat.';
+      if (answered >= 12 && accuracy >= 60) return 'Bagus! Kecepatanmu sudah oke, tinggal tingkatkan akurasi.';
+      if (answered < 8) return 'Coba lagi ya. Fokus ke konsep penting dulu biar lebih cepat menjawab.';
+      return 'Lumayan! Ulangi lagi untuk meningkatkan skor dan pemahaman.';
     }
 
     function resetEthicsGame(start = true) {
