@@ -2547,55 +2547,111 @@
     }
 
     const categoryItems = [
-      ['Tidak mengumpulkan data tanpa izin','Deontologi'],
-      ['Memilih opsi dengan manfaat terbesar','Utilitarianisme'],
-      ['Developer jujur melaporkan bug','Virtue Ethics'],
-      ['Menjaga privasi meski kurang menguntungkan','Deontologi'],
-      ['Audit dampak sosial untuk banyak pihak','Utilitarianisme']
+      { concept: 'Tidak mengumpulkan data tanpa izin', answer: 'Deontologi', explanation: 'Deontologi menilai tindakan berdasarkan prinsip dan kewajiban. Mengambil data tanpa izin melanggar hak privasi walaupun mungkin menguntungkan.' },
+      { concept: 'Memilih opsi dengan manfaat terbesar', answer: 'Utilitarianisme', explanation: 'Utilitarianisme menilai keputusan dari dampaknya. Opsi yang memberi manfaat terbesar bagi banyak pihak menjadi fokus utama.' },
+      { concept: 'Developer jujur melaporkan bug', answer: 'Virtue Ethics', explanation: 'Virtue Ethics melihat karakter dan integritas. Kejujuran developer saat melaporkan risiko menunjukkan karakter profesional yang etis.' },
+      { concept: 'Menjaga privasi meski kurang menguntungkan', answer: 'Deontologi', explanation: 'Deontologi memberi batas moral yang tidak boleh dilanggar. Privasi tetap harus dijaga meskipun ada tekanan bisnis.' },
+      { concept: 'Audit dampak sosial untuk banyak pihak', answer: 'Utilitarianisme', explanation: 'Audit dampak sosial membantu menilai manfaat dan kerugian bagi banyak kelompok, sehingga cocok dengan pendekatan utilitarian.' }
     ];
-    let categoryIndex = 0, categoryScore = 0;
+    let categoryIndex = 0, categoryScore = 0, categoryAnswered = false;
     function drawCategoryGame() {
-      const item = categoryItems[categoryIndex % categoryItems.length];
+      if (categoryIndex >= categoryItems.length) return showCategoryResult();
+      const item = categoryItems[categoryIndex];
       $('categoryGame').innerHTML = `<div class="rounded-2xl bg-white/70 p-4 dark:bg-white/10">
         <div class="mb-3 flex justify-between text-sm font-bold"><span>Skor ${categoryScore}</span><span>${categoryIndex + 1}/${categoryItems.length}</span></div>
-        <div class="rounded-2xl bg-gradient-to-br from-indigo-600 to-cyan-500 p-4 font-bold text-white">${item[0]}</div>
-        <div class="mt-3 grid gap-2">${['Deontologi','Utilitarianisme','Virtue Ethics'].map(k => `<button onclick="answerCategory('${k}')" class="rounded-2xl bg-white px-3 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:-translate-y-1 dark:bg-slate-900 dark:text-white">${k}</button>`).join('')}</div>
+        <div class="rounded-2xl bg-gradient-to-br from-indigo-600 to-cyan-500 p-4 font-bold text-white">${escapeHtml(item.concept)}</div>
+        <div class="mt-3 grid gap-2">${['Deontologi','Utilitarianisme','Virtue Ethics'].map(k => `<button onclick="answerCategory('${k}')" class="category-option rounded-2xl bg-white px-3 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:-translate-y-1 dark:bg-slate-900 dark:text-white">${k}</button>`).join('')}</div>
         <div id="categoryFeedback" class="mt-3"></div>
+        <button id="nextCategoryBtn" onclick="nextCategoryQuestion()" class="hidden mt-4 w-full rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 font-bold text-white shadow-sm transition hover:-translate-y-1">Soal Berikutnya</button>
       </div>`;
     }
     function answerCategory(choice) {
-      const item = categoryItems[categoryIndex % categoryItems.length];
-      const ok = choice === item[1];
+      if (categoryAnswered) return;
+      categoryAnswered = true;
+      const item = categoryItems[categoryIndex];
+      const ok = choice === item.answer;
       categoryScore += ok ? 10 : 0;
-      $('categoryFeedback').innerHTML = `<div class="${ok ? 'bounce-ok bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100' : 'shake-bad bg-rose-100 text-rose-800 dark:bg-rose-400/15 dark:text-rose-100'} rounded-2xl p-3 text-sm">${ok ? 'Benar!' : 'Belum tepat.'} Jawaban: <b>${item[1]}</b></div>`;
+      document.querySelectorAll('.category-option').forEach(button => {
+        button.disabled = true;
+        button.classList.add('cursor-not-allowed', 'opacity-70');
+      });
+      $('categoryFeedback').innerHTML = `<div class="${ok ? 'bounce-ok bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100' : 'shake-bad bg-rose-100 text-rose-800 dark:bg-rose-400/15 dark:text-rose-100'} rounded-2xl p-3 text-sm">${ok ? 'Benar!' : `Belum tepat. Jawaban yang benar: <b>${item.answer}</b>.`}<br>${escapeHtml(item.explanation)}</div>`;
+      $('nextCategoryBtn').textContent = categoryIndex >= categoryItems.length - 1 ? 'Lihat Hasil' : 'Soal Berikutnya';
+      $('nextCategoryBtn').classList.remove('hidden');
       toast(ok ? 'Kategori tepat. +10 poin!' : 'Coba ingat lagi tiga kerangka etika.');
       playTone(ok ? 'game' : 'bad');
-      setTimeout(() => { categoryIndex = (categoryIndex + 1) % categoryItems.length; drawCategoryGame(); }, 900);
+    }
+    function nextCategoryQuestion() {
+      if (!categoryAnswered) return;
+      categoryIndex++;
+      if (categoryIndex >= categoryItems.length) return showCategoryResult();
+      categoryAnswered = false;
+      drawCategoryGame();
+    }
+    function showCategoryResult() {
+      const correct = categoryScore / 10;
+      $('categoryGame').innerHTML = `<div class="rounded-2xl bg-gradient-to-br from-indigo-600 to-cyan-500 p-5 text-center text-white shadow-glow">
+        <h4 class="font-heading text-2xl">Game selesai!</h4>
+        <p class="mt-2 font-bold">Skor kamu: ${correct}/${categoryItems.length}</p>
+        <p class="mt-2 text-sm text-indigo-50">${correct >= 4 ? 'Keren! Kamu sudah paham cara membedakan kerangka etika.' : 'Bagus, lanjut ulangi tiga kerangka etika agar makin nempel.'}</p>
+        <button onclick="resetCategoryGame()" class="mt-4 rounded-2xl bg-white px-4 py-2 font-bold text-indigo-700">Main Lagi</button>
+      </div>`;
+    }
+    function resetCategoryGame() {
+      categoryIndex = 0; categoryScore = 0; categoryAnswered = false; drawCategoryGame();
     }
 
     const termItems = [
-      ['Prinsip keamanan: tidak ada akses dipercaya otomatis.', 'Zero Trust', ['Zero Trust','GDPR','Deepfake']],
-      ['Dokumentasi perjalanan bukti digital sampai pengadilan.', 'Chain of Custody', ['Kill Chain','Chain of Custody','Data minimisation']],
-      ['Hak meminta penghapusan data pribadi.', 'Right to be Forgotten', ['Purpose Limitation','Right to be Forgotten','Whaling']],
-      ['Konten palsu realistis berbasis AI.', 'Deepfake', ['Deepfake','Phishing','Firewall']]
+      { clue: 'Prinsip keamanan: tidak ada akses dipercaya otomatis.', answer: 'Zero Trust', options: ['Zero Trust','GDPR','Deepfake'], explanation: 'Zero Trust berarti setiap akses harus diverifikasi dan dibatasi sesuai kebutuhan.' },
+      { clue: 'Dokumentasi perjalanan bukti digital sampai pengadilan.', answer: 'Chain of Custody', options: ['Kill Chain','Chain of Custody','Data minimisation'], explanation: 'Chain of Custody menjaga integritas bukti agar sah dan tidak mudah dipersoalkan.' },
+      { clue: 'Hak meminta penghapusan data pribadi.', answer: 'Right to be Forgotten', options: ['Purpose Limitation','Right to be Forgotten','Whaling'], explanation: 'Right to be Forgotten memberi hak kepada pemilik data untuk meminta penghapusan data pribadinya.' },
+      { clue: 'Konten palsu realistis berbasis AI.', answer: 'Deepfake', options: ['Deepfake','Phishing','Firewall'], explanation: 'Deepfake memakai AI untuk membuat audio, gambar, atau video palsu yang tampak nyata.' }
     ];
-    let termIndex = 0, termScore = 0;
+    let termIndex = 0, termScore = 0, termAnswered = false;
     function drawTermGame() {
-      const item = termItems[termIndex % termItems.length];
+      if (termIndex >= termItems.length) return showTermResult();
+      const item = termItems[termIndex];
       $('termGame').innerHTML = `<div class="rounded-2xl bg-white/70 p-4 dark:bg-white/10">
         <div class="mb-3 flex justify-between text-sm font-bold"><span>Skor ${termScore}</span><span>${termIndex + 1}/${termItems.length}</span></div>
-        <p class="min-h-20 font-semibold">${item[0]}</p>
-        <div class="mt-3 grid gap-2">${item[2].map(o => `<button onclick="answerTerm('${o}')" class="rounded-2xl bg-white px-3 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:-translate-y-1 dark:bg-slate-900 dark:text-white">${o}</button>`).join('')}</div>
+        <p class="min-h-20 font-semibold">${escapeHtml(item.clue)}</p>
+        <div class="mt-3 grid gap-2">${item.options.map(o => `<button onclick="answerTerm('${o}')" class="term-option rounded-2xl bg-white px-3 py-3 text-sm font-bold text-slate-800 shadow-sm transition hover:-translate-y-1 dark:bg-slate-900 dark:text-white">${escapeHtml(o)}</button>`).join('')}</div>
         <div id="termFeedback" class="mt-3"></div>
+        <button id="nextTermBtn" onclick="nextTermQuestion()" class="hidden mt-4 w-full rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 font-bold text-white shadow-sm transition hover:-translate-y-1">Soal Berikutnya</button>
       </div>`;
     }
     function answerTerm(choice) {
-      const item = termItems[termIndex % termItems.length];
-      const ok = choice === item[1];
+      if (termAnswered) return;
+      termAnswered = true;
+      const item = termItems[termIndex];
+      const ok = choice === item.answer;
       termScore += ok ? 10 : 0;
-      $('termFeedback').innerHTML = `<div class="${ok ? 'bounce-ok bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100' : 'shake-bad bg-rose-100 text-rose-800 dark:bg-rose-400/15 dark:text-rose-100'} rounded-2xl p-3 text-sm">${ok ? 'Benar!' : 'Kurang pas.'} Istilah: <b>${item[1]}</b></div>`;
+      document.querySelectorAll('.term-option').forEach(button => {
+        button.disabled = true;
+        button.classList.add('cursor-not-allowed', 'opacity-70');
+      });
+      $('termFeedback').innerHTML = `<div class="${ok ? 'bounce-ok bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100' : 'shake-bad bg-rose-100 text-rose-800 dark:bg-rose-400/15 dark:text-rose-100'} rounded-2xl p-3 text-sm">${ok ? 'Benar!' : `Kurang pas. Istilah yang benar: <b>${escapeHtml(item.answer)}</b>.`}<br>${escapeHtml(item.explanation)}</div>`;
+      $('nextTermBtn').textContent = termIndex >= termItems.length - 1 ? 'Lihat Hasil' : 'Soal Berikutnya';
+      $('nextTermBtn').classList.remove('hidden');
       playTone(ok ? 'game' : 'bad');
-      setTimeout(() => { termIndex = (termIndex + 1) % termItems.length; drawTermGame(); }, 900);
+    }
+    function nextTermQuestion() {
+      if (!termAnswered) return;
+      termIndex++;
+      if (termIndex >= termItems.length) return showTermResult();
+      termAnswered = false;
+      drawTermGame();
+    }
+    function showTermResult() {
+      const correct = termScore / 10;
+      $('termGame').innerHTML = `<div class="rounded-2xl bg-gradient-to-br from-purple-600 to-emerald-500 p-5 text-center text-white shadow-glow">
+        <h4 class="font-heading text-2xl">Game selesai!</h4>
+        <p class="mt-2 font-bold">Skor kamu: ${correct}/${termItems.length}</p>
+        <p class="mt-2 text-sm text-purple-50">${correct >= 3 ? 'Mantap! Istilah penting UTS sudah mulai kuat.' : 'Coba lagi pelan-pelan, istilah ini sering jadi kunci soal.'}</p>
+        <button onclick="resetTermGame()" class="mt-4 rounded-2xl bg-white px-4 py-2 font-bold text-purple-700">Main Lagi</button>
+      </div>`;
+    }
+    function resetTermGame() {
+      termIndex = 0; termScore = 0; termAnswered = false; drawTermGame();
     }
 
     const decisionItems = [
@@ -2690,19 +2746,21 @@
     ];
     let decisionIndex = 0, decisionScore = 0, decisionAnswered = false;
     function drawDecisionGame() {
-      const item = decisionItems[decisionIndex % decisionItems.length];
+      if (decisionIndex >= decisionItems.length) return showDecisionResult();
+      const item = decisionItems[decisionIndex];
       $('decisionGame').innerHTML = `<div class="rounded-2xl bg-white/70 p-4 dark:bg-white/10">
         <div class="mb-3 flex justify-between text-sm font-bold"><span>Skor ${decisionScore}</span><span>${decisionIndex + 1}/${decisionItems.length}</span></div>
         <p class="text-sm text-slate-600 dark:text-slate-300">${escapeHtml(item.scenario)}</p>
         <p class="mt-2 font-semibold">${escapeHtml(item.question)}</p>
         <div class="mt-3 grid gap-2">${item.options.map((option, index) => `<button onclick="answerDecision(${index})" class="decision-option rounded-2xl bg-white px-3 py-3 text-left text-sm font-bold text-slate-800 shadow-sm transition hover:-translate-y-1 dark:bg-slate-900 dark:text-white">${escapeHtml(option.text)}</button>`).join('')}</div>
         <div id="decisionFeedback" class="mt-3"></div>
+        <button id="nextDecisionBtn" onclick="nextDecisionQuestion()" class="hidden mt-4 w-full rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 font-bold text-white shadow-sm transition hover:-translate-y-1">Soal Berikutnya</button>
       </div>`;
     }
     function answerDecision(selectedIndex) {
       if (decisionAnswered) return;
       decisionAnswered = true;
-      const item = decisionItems[decisionIndex % decisionItems.length];
+      const item = decisionItems[decisionIndex];
       const selectedOption = item.options[Number(selectedIndex)];
       const correctOption = item.options.find(option => option.correct);
       const ok = Boolean(selectedOption && selectedOption.correct);
@@ -2712,8 +2770,28 @@
         button.classList.add('cursor-not-allowed', 'opacity-70');
       });
       $('decisionFeedback').innerHTML = `<div class="${ok ? 'bounce-ok bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100' : 'shake-bad bg-rose-100 text-rose-800 dark:bg-rose-400/15 dark:text-rose-100'} rounded-2xl p-3 text-sm">${ok ? 'Benar, itu keputusan paling etis.' : `Salah. Jawaban yang lebih tepat: <b>${escapeHtml(correctOption.text)}</b>.`}<br>${escapeHtml(item.explanation)}</div>`;
+      $('nextDecisionBtn').textContent = decisionIndex >= decisionItems.length - 1 ? 'Lihat Hasil' : 'Soal Berikutnya';
+      $('nextDecisionBtn').classList.remove('hidden');
       playTone(ok ? 'game' : 'bad');
-      setTimeout(() => { decisionIndex = (decisionIndex + 1) % decisionItems.length; decisionAnswered = false; drawDecisionGame(); }, 1400);
+    }
+    function nextDecisionQuestion() {
+      if (!decisionAnswered) return;
+      decisionIndex++;
+      if (decisionIndex >= decisionItems.length) return showDecisionResult();
+      decisionAnswered = false;
+      drawDecisionGame();
+    }
+    function showDecisionResult() {
+      const correct = decisionScore / 10;
+      $('decisionGame').innerHTML = `<div class="rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-cyan-500 p-5 text-center text-white shadow-glow">
+        <h4 class="font-heading text-2xl">Game selesai!</h4>
+        <p class="mt-2 font-bold">Skor kamu: ${correct}/${decisionItems.length}</p>
+        <p class="mt-2 text-sm text-indigo-50">${correct >= 6 ? 'Keren! Keputusan etismu sudah tajam.' : 'Bagus, ulangi lagi kasus-kasus penting supaya makin siap UTS.'}</p>
+        <button onclick="resetDecisionGame()" class="mt-4 rounded-2xl bg-white px-4 py-2 font-bold text-indigo-700">Main Lagi</button>
+      </div>`;
+    }
+    function resetDecisionGame() {
+      decisionIndex = 0; decisionScore = 0; decisionAnswered = false; drawDecisionGame();
     }
 
     function startSpeedGame() {
